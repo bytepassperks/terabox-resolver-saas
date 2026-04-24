@@ -60,10 +60,7 @@ services:
           name: trs-redis
           property: connectionString
       - key: RESOLVER_API_URL
-        fromService:
-          type: web
-          name: trs-resolver-api
-          property: host
+        value: http://trs-resolver-api:4001
 
   - type: web
     name: trs-admin-api
