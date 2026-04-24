@@ -9,7 +9,8 @@
 
 databases:
   - name: trs-postgres
-    plan: basic_256mb
+    plan: basic-256mb
+    diskSizeGB: 1
     postgresMajorVersion: '16'
 
 services:
