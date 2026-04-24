@@ -1,0 +1,28 @@
+{
+  "name": "@trs/rate-limit-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"no lint configured\"",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@trs/cache-layer": "workspace:*",
+    "@trs/logger": "workspace:*",
+    "@trs/metrics": "workspace:*",
+    "@trs/shared-types": "workspace:*",
+    "ioredis": "^5.4.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "rimraf": "^6.0.1"
+  }
+}
