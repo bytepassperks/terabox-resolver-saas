@@ -4,6 +4,7 @@ import type {
   TeraboxDownloadResponse,
   TeraboxSessionContext,
   TeraboxShareListResponse,
+  TeraboxShortUrlInfoResponse,
   TeraboxVerifyPasswordResponse,
 } from './types.js';
 
@@ -13,9 +14,13 @@ import type {
  * future ToS rotation only requires editing this one module.
  *
  * Current flow (subject to change):
- *   1. GET sharing page  → capture `js-token` and session cookies
- *   2. GET /share/list   → returns file metadata + fs_id
- *   3. GET /share/download → returns short-lived `dlink`
+ *   1. GET sharing page             → capture `js-token` and session cookies
+ *   2. GET /api/shorturlinfo        → sign, timestamp, randsk (BDCLND cookie)
+ *   3. GET /share/list (+ BDCLND)   → returns file metadata + fs_id
+ *   4. GET /share/download          → returns short-lived `dlink`
+ *
+ * Step 2 is critical: TeraBox blocks /share/list with `code 460020 "need verify"`
+ * unless the BDCLND cookie (derived from shorturlinfo.randsk) is set.
  *
  * When TeraBox rotates, the typical failure modes are:
  *   - jsToken regex no longer matches the inlined script → PROVIDER_AUTH_EXPIRED
@@ -132,6 +137,55 @@ export async function verifyPassword(
   };
 }
 
+/**
+ * Fetch share metadata from /api/shorturlinfo. This returns sign, timestamp,
+ * and randsk (used as BDCLND cookie). The returned session has BDCLND merged
+ * into cookies and signData populated.
+ */
+export async function fetchShortUrlInfo(
+  session: TeraboxSessionContext,
+  signal: AbortSignal,
+): Promise<{ session: TeraboxSessionContext; info: TeraboxShortUrlInfoResponse }> {
+  const url = new URL('https://www.terabox.com/api/shorturlinfo');
+  url.searchParams.set('app_id', APP_ID);
+  url.searchParams.set('web', WEB);
+  url.searchParams.set('channel', CHANNEL);
+  url.searchParams.set('clienttype', CLIENTTYPE);
+  url.searchParams.set('shorturl', session.shortUrl);
+  url.searchParams.set('root', '1');
+
+  const res = await request(url, {
+    method: 'GET',
+    headers: {
+      'user-agent': USER_AGENT,
+      accept: 'application/json, text/plain, */*',
+      cookie: session.cookies,
+      referer: `https://www.terabox.com/sharing/link?surl=${session.shortUrl}`,
+    },
+    signal,
+  });
+  const body = (await res.body.json()) as TeraboxShortUrlInfoResponse;
+  if (body.errno !== 0) {
+    throw mapErrno(body.errno, 'shorturlinfo');
+  }
+
+  let updatedCookies = session.cookies;
+  if (body.randsk) {
+    const decoded = decodeURIComponent(body.randsk);
+    updatedCookies = `${session.cookies}; BDCLND=${decoded}`;
+  }
+
+  const updatedSession: TeraboxSessionContext = {
+    ...session,
+    cookies: updatedCookies,
+    signData: body.sign
+      ? { sign: body.sign, timestamp: body.timestamp ?? Math.floor(Date.now() / 1000) }
+      : session.signData,
+  };
+
+  return { session: updatedSession, info: body };
+}
+
 export async function fetchShareList(
   session: TeraboxSessionContext,
   signal: AbortSignal,
@@ -150,6 +204,10 @@ export async function fetchShareList(
   url.searchParams.set('site_referer', '');
   url.searchParams.set('shorturl', session.shortUrl);
   url.searchParams.set('root', '1');
+  if (session.signData) {
+    url.searchParams.set('sign', session.signData.sign);
+    url.searchParams.set('timestamp', String(session.signData.timestamp));
+  }
 
   const res = await request(url, {
     method: 'GET',
@@ -161,9 +219,38 @@ export async function fetchShareList(
     },
     signal,
   });
-  const body = (await res.body.json()) as TeraboxShareListResponse;
-  if (body.errno === 0) return body;
-  throw mapErrno(body.errno, 'share/list');
+
+  const raw = await res.body.text();
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    throw new ResolverError({
+      code: 'PROVIDER_UPSTREAM_ERROR',
+      message: 'TeraBox share/list returned non-JSON response',
+      provider: 'terabox',
+      refundable: true,
+      retriable: true,
+    });
+  }
+
+  if (typeof body['errno'] === 'number' && body['errno'] === 0) {
+    return body as unknown as TeraboxShareListResponse;
+  }
+
+  // TeraBox sometimes returns { code: 460020, errmsg: "need verify" } instead of errno
+  if (typeof body['code'] === 'number' && body['code'] === 460020) {
+    throw new ResolverError({
+      code: 'PROVIDER_AUTH_EXPIRED',
+      message: 'TeraBox share/list: verification required (code 460020)',
+      provider: 'terabox',
+      refundable: true,
+      retriable: true,
+    });
+  }
+
+  const errno = typeof body['errno'] === 'number' ? body['errno'] : -1;
+  throw mapErrno(errno, 'share/list');
 }
 
 export async function fetchDownloadLink(
@@ -184,6 +271,10 @@ export async function fetchDownloadLink(
   url.searchParams.set('uk', String(uk));
   url.searchParams.set('fid_list', `[${fsId}]`);
   url.searchParams.set('primaryid', String(shareId));
+  if (session.signData) {
+    url.searchParams.set('sign', session.signData.sign);
+    url.searchParams.set('timestamp', String(session.signData.timestamp));
+  }
 
   const res = await request(url, {
     method: 'GET',

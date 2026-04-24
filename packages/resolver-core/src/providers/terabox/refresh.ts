@@ -1,6 +1,6 @@
 import type { ResolverResult } from '@trs/shared-types';
 import { ResolverError } from '@trs/shared-types';
-import { fetchDownloadLink, fetchSession, fetchShareList, verifyPassword } from './extract.js';
+import { fetchDownloadLink, fetchSession, fetchShareList, fetchShortUrlInfo, verifyPassword } from './extract.js';
 import { normalizeTeraboxResult } from './normalize.js';
 
 /**
@@ -19,6 +19,12 @@ export function extractPasswordFromUrl(url: string): string | null {
  * Refreshes a known TeraBox shareId: runs the extractor again and produces a
  * fresh ResolverResult. Used by the warm-cache cron and by the gateway when
  * it detects `expiresAtMs` is within the safety margin.
+ *
+ * Flow:
+ *   1. fetchSession       → jsToken + cookies
+ *   2. fetchShortUrlInfo  → sign, timestamp, BDCLND cookie (required by share/list)
+ *   3. fetchShareList     → file metadata
+ *   4. fetchDownloadLink  → short-lived dlink
  */
 export async function refreshTeraboxShare(
   shareId: string,
@@ -26,6 +32,11 @@ export async function refreshTeraboxShare(
   password?: string,
 ): Promise<ResolverResult> {
   let session = await fetchSession(shareId, signal);
+
+  // Fetch shorturlinfo to obtain BDCLND cookie + sign/timestamp.
+  // This step is critical — without it TeraBox returns code 460020 "need verify".
+  const { session: enrichedSession } = await fetchShortUrlInfo(session, signal);
+  session = enrichedSession;
 
   try {
     const list = await fetchShareList(session, signal);

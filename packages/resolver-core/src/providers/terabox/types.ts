@@ -9,9 +9,9 @@ export interface TeraboxSessionContext {
   jsToken: string;
   logid: string;
   cookies: string;
-  /** Short share URL id (e.g. for `surl=1XyZ`, this is `1XyZ`). */
+  /** Full share URL id including leading "1" (e.g. `1_uvqm1xGk4aGyGun22X8CQ`). */
   shortUrl: string;
-  /** Optional password-protect token once we support password links. */
+  /** sign + timestamp from shorturlinfo / password verify – required for download. */
   signData?: {
     sign: string;
     timestamp: number;
@@ -50,4 +50,16 @@ export interface TeraboxVerifyPasswordResponse {
   errno: number;
   sign?: string;
   timestamp?: number;
+}
+
+export interface TeraboxShortUrlInfoResponse {
+  errno: number;
+  shareid?: number;
+  uk?: number;
+  sign?: string;
+  timestamp?: number;
+  randsk?: string;
+  list?: TeraboxFileEntry[];
+  title?: string;
+  fcount?: number;
 }

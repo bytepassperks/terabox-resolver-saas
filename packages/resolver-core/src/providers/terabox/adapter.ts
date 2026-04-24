@@ -5,15 +5,17 @@ import { extractPasswordFromUrl, refreshTeraboxShare } from './refresh.js';
 
 /**
  * TeraBox surl extractor. Accepts any of these layouts:
- *   https://terabox.com/s/1XYZ
- *   https://www.terabox.com/sharing/link?surl=1XYZ
- *   https://1024tera.com/s/1XYZ
- *   https://teraboxshare.com/s/1XYZ
+ *   https://terabox.com/s/1XYZ           → surl = "1XYZ"
+ *   https://www.terabox.com/sharing/link?surl=1XYZ → surl = "1XYZ"
+ *   https://1024terabox.com/s/1_uvqm...  → surl = "1_uvqm..."
+ *
+ * NOTE: The leading "1" is NOT stripped — it is part of the surl identifier.
+ * The shorturlinfo API requires the full surl including the "1".
  */
 function parseShortUrl(url: URL): string | null {
   const sParam = url.searchParams.get('surl');
-  if (sParam) return sParam.replace(/^1/, ''); // TeraBox prefixes surl with "1"
-  const pathMatch = /\/s\/1?([A-Za-z0-9_-]+)/.exec(url.pathname);
+  if (sParam) return sParam;
+  const pathMatch = /\/s\/([A-Za-z0-9_-]+)/.exec(url.pathname);
   if (pathMatch?.[1]) return pathMatch[1];
   return null;
 }
