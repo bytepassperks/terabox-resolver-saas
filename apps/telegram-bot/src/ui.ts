@@ -1,7 +1,37 @@
+import { randomBytes } from 'node:crypto';
 import type { InlineKeyboardButton } from 'grammy/types';
 import type { ResolverResult } from '@trs/shared-types';
 import type { ResolverErrorCode } from '@trs/shared-types';
 import { PAID_PLAN_IDS, PLAN_DEFINITIONS } from '@trs/credits-engine';
+
+// Short-lived URL store for "Copy Link" callback buttons.
+// Telegram callback_data is limited to 64 bytes, so we store the full URL
+// here keyed by a short random ID and expire entries after 24 h.
+const COPY_URL_TTL_MS = 24 * 60 * 60 * 1000;
+const copyUrlStore = new Map<string, { url: string; expiresAt: number }>();
+
+export function storeCopyUrl(url: string): string {
+  const id = randomBytes(8).toString('hex');
+  copyUrlStore.set(id, { url, expiresAt: Date.now() + COPY_URL_TTL_MS });
+  // Lazy cleanup of expired entries
+  if (copyUrlStore.size > 5000) {
+    const now = Date.now();
+    for (const [k, v] of copyUrlStore) {
+      if (v.expiresAt < now) copyUrlStore.delete(k);
+    }
+  }
+  return id;
+}
+
+export function lookupCopyUrl(id: string): string | null {
+  const entry = copyUrlStore.get(id);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    copyUrlStore.delete(id);
+    return null;
+  }
+  return entry.url;
+}
 
 export function formatBytes(bytes: number | null): string {
   if (bytes == null || !Number.isFinite(bytes) || bytes <= 0) return '?';
@@ -206,7 +236,8 @@ export function renderSuccess(result: ResolverResult, remainingCredits: number):
   if (row1.length > 0) buttons.push(row1);
 
   if (result.downloadUrl) {
-    buttons.push([{ text: '\u{1F4CB} Copy Link', callback_data: `copy:${result.downloadUrl.slice(0, 60)}` }]);
+    const copyId = storeCopyUrl(result.downloadUrl);
+    buttons.push([{ text: '\u{1F4CB} Copy Link', callback_data: `copy:${copyId}` }]);
   }
 
   return { text: lines.join('\n'), inlineKeyboard: buttons };

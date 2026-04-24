@@ -3,6 +3,8 @@ import { ResolverError } from '@trs/shared-types';
 import { PLAN_DEFINITIONS } from '@trs/credits-engine';
 import type { BotContext } from '../bot.js';
 import {
+  escapeHtml,
+  lookupCopyUrl,
   renderBalance,
   renderBlocked,
   renderBuy,
@@ -142,6 +144,18 @@ export function registerUserCommands(bot: Bot, ctx: BotContext): void {
     await c.editMessageText(
       'Redeem codes are coming soon. Your admin can grant bonuses via /addcredits.',
     ).catch(() => undefined);
+  });
+
+  // ── Copy Link callback — send the download URL as a copyable message ─
+  bot.callbackQuery(/^copy:/, async (c) => {
+    const copyId = c.callbackQuery.data.replace('copy:', '');
+    const url = lookupCopyUrl(copyId);
+    if (!url) {
+      await c.answerCallbackQuery({ text: 'Link expired — resolve again', show_alert: true });
+      return;
+    }
+    await c.answerCallbackQuery({ text: 'Link sent below \u2193' });
+    await c.reply(`<code>${escapeHtml(url)}</code>`, { parse_mode: 'HTML' });
   });
 
   // ── /resolve command ────────────────────────────────────────────
