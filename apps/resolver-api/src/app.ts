@@ -30,6 +30,7 @@ const ResolveSchema = z.object({
   providerOverride: z.string().optional(),
   telegramUserId: z.number().int().positive().optional(),
   requestId: z.string().min(8).max(64).optional(),
+  password: z.string().max(64).optional(),
 });
 
 export interface ResolverAppDeps {
@@ -127,6 +128,7 @@ export async function createResolverApp(log: Logger): Promise<Express> {
     try {
       const result = await deps.gateway.resolve({
         url: body.url,
+        password: body.password,
         context: {
           telegramUserId: body.telegramUserId,
           providerOverride: body.providerOverride as never,

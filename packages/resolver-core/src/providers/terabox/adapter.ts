@@ -1,7 +1,7 @@
 import type { ResolverContext, ResolverResult } from '@trs/shared-types';
 import { ResolverError } from '@trs/shared-types';
 import type { ResolverAdapter } from '../../adapter.js';
-import { refreshTeraboxShare } from './refresh.js';
+import { extractPasswordFromUrl, refreshTeraboxShare } from './refresh.js';
 
 /**
  * TeraBox surl extractor. Accepts any of these layouts:
@@ -45,7 +45,7 @@ export const teraboxAdapter: ResolverAdapter = {
     return parseShortUrl(url);
   },
 
-  async resolve(url: URL, _ctx: ResolverContext, signal: AbortSignal): Promise<ResolverResult> {
+  async resolve(url: URL, _ctx: ResolverContext, signal: AbortSignal, password?: string): Promise<ResolverResult> {
     const shareId = parseShortUrl(url);
     if (!shareId) {
       throw new ResolverError({
@@ -56,7 +56,9 @@ export const teraboxAdapter: ResolverAdapter = {
         retriable: false,
       });
     }
-    return refreshTeraboxShare(shareId, signal);
+    const urlPassword = extractPasswordFromUrl(url.href);
+    const effectivePassword = password ?? urlPassword ?? undefined;
+    return refreshTeraboxShare(shareId, signal, effectivePassword);
   },
 
   async refreshById(shareId: string, _ctx: ResolverContext, signal: AbortSignal): Promise<ResolverResult> {

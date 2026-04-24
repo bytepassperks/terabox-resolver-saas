@@ -28,7 +28,7 @@ export interface GatewayOptions {
 export class ResolverGateway {
   constructor(private readonly opts: GatewayOptions) {}
 
-  async resolve(input: { url: string; context?: Partial<ResolverContext> }): Promise<ResolverResult> {
+  async resolve(input: { url: string; context?: Partial<ResolverContext>; password?: string }): Promise<ResolverResult> {
     const ctx: ResolverContext = {
       requestId: input.context?.requestId ?? randomUUID(),
       telegramUserId: input.context?.telegramUserId,
@@ -66,7 +66,7 @@ export class ResolverGateway {
     // so concurrent requests for the same link hit the upstream only once.
     const { result } = await this.opts.cache.singleflightFetch(
       { provider: primary, shareId },
-      async () => this.runChain(primary, url, ctx),
+      async () => this.runChain(primary, url, ctx, input.password),
     );
     const stored = await this.opts.cache.put({ provider: result.provider, shareId }, result);
     resolveOutcomes.inc({ provider: result.provider, outcome: 'resolved' });
@@ -77,7 +77,7 @@ export class ResolverGateway {
     return { ...stored.result, cached: false };
   }
 
-  private async runChain(primary: ProviderId, url: URL, ctx: ResolverContext): Promise<ResolverResult> {
+  private async runChain(primary: ProviderId, url: URL, ctx: ResolverContext, password?: string): Promise<ResolverResult> {
     const chain = [primary, ...(this.opts.fallbacks?.[primary] ?? [])].filter((id) =>
       this.opts.registry.has(id),
     );
@@ -101,7 +101,7 @@ export class ResolverGateway {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.opts.cfg.timeoutMs);
       try {
-        const result = await adapter.resolve(url, ctx, controller.signal);
+        const result = await adapter.resolve(url, ctx, controller.signal, password);
         await this.opts.breaker.recordSuccess(providerId);
         return result;
       } catch (err) {

@@ -16,6 +16,7 @@ export type ResolverErrorCode =
   | 'INVALID_SHARE_LINK'
   | 'CONTENT_NOT_FOUND'
   | 'CONTENT_PASSWORD_PROTECTED'
+  | 'INVALID_PASSWORD'
   | 'INTERNAL_ERROR';
 
 export interface ResolverErrorDetails {

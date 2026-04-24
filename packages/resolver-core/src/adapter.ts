@@ -26,7 +26,7 @@ export interface ResolverAdapter {
    * MUST throw a ResolverError (not a plain Error) on any failure mode.
    * Implementations should be pure w.r.t. cache — the gateway handles it.
    */
-  resolve(url: URL, ctx: ResolverContext, signal: AbortSignal): Promise<ResolverResult>;
+  resolve(url: URL, ctx: ResolverContext, signal: AbortSignal, password?: string): Promise<ResolverResult>;
 
   /**
    * Optional warm-cache entry: given a known shareId, re-fetch its metadata

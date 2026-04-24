@@ -4,6 +4,7 @@ import type {
   TeraboxDownloadResponse,
   TeraboxSessionContext,
   TeraboxShareListResponse,
+  TeraboxVerifyPasswordResponse,
 } from './types.js';
 
 /**
@@ -77,6 +78,58 @@ export async function fetchSession(shortUrl: string, signal: AbortSignal): Promi
   }
   const cookies = extractCookies(res.headers['set-cookie']);
   return { jsToken, logid, cookies, shortUrl };
+}
+
+export async function verifyPassword(
+  session: TeraboxSessionContext,
+  password: string,
+  signal: AbortSignal,
+): Promise<TeraboxSessionContext> {
+  const url = new URL('https://www.terabox.com/share/verify');
+  url.searchParams.set('app_id', APP_ID);
+  url.searchParams.set('web', WEB);
+  url.searchParams.set('channel', CHANNEL);
+  url.searchParams.set('clienttype', CLIENTTYPE);
+  url.searchParams.set('jsToken', session.jsToken);
+  url.searchParams.set('dp-logid', session.logid);
+  url.searchParams.set('shorturl', session.shortUrl);
+
+  const body = new URLSearchParams({ pwd: password });
+  const res = await request(url, {
+    method: 'POST',
+    headers: {
+      'user-agent': USER_AGENT,
+      accept: 'application/json',
+      'content-type': 'application/x-www-form-urlencoded',
+      cookie: session.cookies,
+      referer: `https://www.terabox.com/sharing/link?surl=${session.shortUrl}`,
+    },
+    body: body.toString(),
+    signal,
+  });
+  const json = (await res.body.json()) as TeraboxVerifyPasswordResponse;
+  if (json.errno !== 0) {
+    throw new ResolverError({
+      code: 'INVALID_PASSWORD',
+      message: 'TeraBox password verification failed',
+      provider: 'terabox',
+      refundable: true,
+      retriable: false,
+    });
+  }
+
+  const updatedCookies = extractCookies(res.headers['set-cookie']);
+  const mergedCookies = updatedCookies
+    ? `${session.cookies}; ${updatedCookies}`
+    : session.cookies;
+
+  return {
+    ...session,
+    cookies: mergedCookies,
+    signData: json.sign
+      ? { sign: json.sign, timestamp: json.timestamp ?? Math.floor(Date.now() / 1000) }
+      : session.signData,
+  };
 }
 
 export async function fetchShareList(

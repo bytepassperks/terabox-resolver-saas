@@ -45,3 +45,9 @@ export interface TeraboxDownloadResponse {
   /** Seconds until dlink expires (TeraBox uses ~8h today). */
   expiration?: number;
 }
+
+export interface TeraboxVerifyPasswordResponse {
+  errno: number;
+  sign?: string;
+  timestamp?: number;
+}

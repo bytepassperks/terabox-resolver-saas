@@ -22,6 +22,12 @@ export interface ResolverResult {
   expiresAtMs: number | null;
   /** True when the result was served from cache (vs freshly resolved). */
   cached: boolean;
+  /** Whether the share was password-protected and successfully unlocked. */
+  unlocked?: boolean;
+  /** How the share was unlocked (password, cache, direct_public, fallback_provider). */
+  unlockSource?: 'password' | 'cache' | 'direct_public' | 'fallback_provider';
+  /** True when the resolver needs the user to supply a password before it can proceed. */
+  requiresPassword?: boolean;
   /** Free-form provider-specific metadata. NEVER trusted by gateway logic. */
   raw?: Record<string, unknown>;
 }

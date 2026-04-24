@@ -21,6 +21,7 @@ export class ResolverClient {
     url: string;
     telegramUserId: number;
     requestId?: string;
+    password?: string;
   }): Promise<ResolverResult> {
     const res = await request(`${this.opts.baseUrl}/v1/resolve`, {
       method: 'POST',

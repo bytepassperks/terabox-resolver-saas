@@ -2,6 +2,7 @@ import type { Bot } from 'grammy';
 import { getPgPool } from '@trs/cache-layer';
 import { PLAN_DEFINITIONS, StarsHandler, planFromInvoicePayload } from '@trs/credits-engine';
 import type { BotContext } from '../bot.js';
+import { renderPaymentSuccess } from '../ui.js';
 
 /**
  * Telegram Stars payment flow:
@@ -23,7 +24,7 @@ export function registerStarsHandlers(bot: Bot, ctx: BotContext): void {
     await c.answerCallbackQuery();
     await c.api.sendInvoice(
       c.chat!.id,
-      `${plan.name} — ${plan.credits} credits`,
+      `${plan.name} \u2014 ${plan.credits} credits`,
       `One-time purchase of ${plan.credits} resolve credits.`,
       JSON.stringify({ planId: plan.id, credits: plan.credits }),
       'XTR',
@@ -56,9 +57,14 @@ export function registerStarsHandlers(bot: Bot, ctx: BotContext): void {
       receivedAtMs: Date.now(),
     });
     if (outcome.credited) {
-      await c.reply('✅ Payment received — credits added to your balance. Try /balance');
+      const balance = await ctx.credits.getBalance(c.from!.id);
+      const msg = renderPaymentSuccess(balance?.credits ?? 0);
+      await c.reply(msg.text, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: msg.inlineKeyboard },
+      });
     } else {
-      await c.reply(`⚠️ Payment received but not credited (${outcome.reason}). Contact support.`);
+      await c.reply(`\u26A0\uFE0F Payment received but not credited (${outcome.reason}). Contact support.`);
     }
   });
 }
