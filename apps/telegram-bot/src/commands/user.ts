@@ -253,6 +253,24 @@ async function handleResolve(c: Context, ctx: BotContext, url: string): Promise<
       return;
     }
 
+    // Build the success message FIRST so that if the Telegram send fails
+    // (e.g. BUTTON_DATA_INVALID) we don't consume credits.
+    const previewMsg = renderSuccess(result, user.credits - 1);
+    if (result.thumbnailUrl) {
+      await c.replyWithPhoto(result.thumbnailUrl, {
+        caption: previewMsg.text,
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: previewMsg.inlineKeyboard },
+      });
+    } else {
+      await c.reply(previewMsg.text, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: previewMsg.inlineKeyboard },
+      });
+    }
+    await c.api.deleteMessage(c.chat!.id, pending.message_id).catch(() => undefined);
+
+    // Message sent successfully — now charge credits
     const charged = await ctx.credits.charge({
       userId: user.userId,
       idempotencyKey: `resolve:${requestId}`,
@@ -260,21 +278,6 @@ async function handleResolve(c: Context, ctx: BotContext, url: string): Promise<
       reason: 'resolve success',
       metadata: { provider: result.provider, shareId: result.shareId },
     });
-
-    const msg = renderSuccess(result, charged.credits);
-    if (result.thumbnailUrl) {
-      await c.replyWithPhoto(result.thumbnailUrl, {
-        caption: msg.text,
-        parse_mode: 'HTML',
-        reply_markup: { inline_keyboard: msg.inlineKeyboard },
-      });
-    } else {
-      await c.reply(msg.text, {
-        parse_mode: 'HTML',
-        reply_markup: { inline_keyboard: msg.inlineKeyboard },
-      });
-    }
-    await c.api.deleteMessage(c.chat!.id, pending.message_id).catch(() => undefined);
 
     if (charged.credits <= 2 && charged.credits > 0) {
       await c.reply(renderLowCredits(charged.credits), {
