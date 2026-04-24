@@ -11,6 +11,8 @@ export function normalizeTeraboxResult(input: {
   shareId: string;
   file: TeraboxFileEntry;
   dlink: string;
+  /** Explicit streaming URL (e.g. from /share/streaming CDN). */
+  streamUrl?: string;
   expiresInSeconds: number | null;
 }): ResolverResult {
   const { shareId, file, dlink, expiresInSeconds } = input;
@@ -24,7 +26,7 @@ export function normalizeTeraboxResult(input: {
     fileSizeBytes: Number.isFinite(size) ? size : null,
     mimeType,
     thumbnailUrl: thumbnail,
-    streamUrl: buildStreamUrl(dlink, mimeType),
+    streamUrl: input.streamUrl ?? buildStreamUrl(dlink, mimeType),
     downloadUrl: dlink,
     expiresAtMs: expiresInSeconds ? Date.now() + expiresInSeconds * 1000 : null,
     cached: false,
