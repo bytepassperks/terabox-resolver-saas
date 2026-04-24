@@ -1,4 +1,6 @@
 import type { Bot, Context } from 'grammy';
+import { InputFile } from 'grammy';
+import { request as undiciRequest } from 'undici';
 import { ResolverError } from '@trs/shared-types';
 import { PLAN_DEFINITIONS } from '@trs/credits-engine';
 import type { BotContext } from '../bot.js';
@@ -256,13 +258,55 @@ async function handleResolve(c: Context, ctx: BotContext, url: string): Promise<
     // Build the success message FIRST so that if the Telegram send fails
     // (e.g. BUTTON_DATA_INVALID) we don't consume credits.
     const previewMsg = renderSuccess(result, user.credits - 1);
-    if (result.thumbnailUrl) {
-      await c.replyWithPhoto(result.thumbnailUrl, {
-        caption: previewMsg.text,
-        parse_mode: 'HTML',
-        reply_markup: { inline_keyboard: previewMsg.inlineKeyboard },
-      });
-    } else {
+    const isVideo = result.mimeType?.startsWith('video/');
+
+    let sent = false;
+
+    // For videos, download through relay and send as native Telegram video.
+    if (isVideo && result.downloadUrl) {
+      try {
+        const videoResp = await undiciRequest(result.downloadUrl, {
+          method: 'GET',
+          headers: {
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          },
+        } as Parameters<typeof undiciRequest>[1]);
+        const chunks: Buffer[] = [];
+        for await (const chunk of videoResp.body) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        const videoBuffer = Buffer.concat(chunks);
+        if (videoBuffer.length > 1024) {
+          const fileName = result.fileName || 'video.mp4';
+          await c.replyWithVideo(new InputFile(videoBuffer, fileName), {
+            caption: previewMsg.text,
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: previewMsg.inlineKeyboard },
+            supports_streaming: true,
+          });
+          sent = true;
+        }
+      } catch {
+        // Download or send failed — fall through to text
+      }
+    }
+
+    // For non-video results, try sending with thumbnail photo.
+    if (!sent && result.thumbnailUrl) {
+      try {
+        await c.replyWithPhoto(result.thumbnailUrl, {
+          caption: previewMsg.text,
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: previewMsg.inlineKeyboard },
+        });
+        sent = true;
+      } catch {
+        // Telegram couldn't fetch the thumbnail — fall through to text
+      }
+    }
+
+    // Fallback: plain text message (always works).
+    if (!sent) {
       await c.reply(previewMsg.text, {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: previewMsg.inlineKeyboard },
