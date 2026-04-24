@@ -30,7 +30,7 @@ export const pixeldrainAdapter: ResolverAdapter = {
   },
 
   canHandle(url: URL): boolean {
-    return /(^|\.)pixeldrain\.com$/i.test(url.hostname);
+    return /(^|\.)(?:pixeldrain\.com|pixeldra\.in)$/i.test(url.hostname);
   },
 
   extractShareId(url: URL): string | null {

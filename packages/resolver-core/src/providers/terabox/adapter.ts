@@ -29,16 +29,7 @@ export const teraboxAdapter: ResolverAdapter = {
 
   canHandle(url: URL): boolean {
     const h = url.hostname.toLowerCase();
-    return (
-      /(^|\.)terabox\.com$/i.test(h) ||
-      /(^|\.)teraboxapp\.com$/i.test(h) ||
-      /(^|\.)teraboxshare\.com$/i.test(h) ||
-      /(^|\.)1024tera\.com$/i.test(h) ||
-      /(^|\.)4funbox\.com$/i.test(h) ||
-      /(^|\.)mirrobox\.com$/i.test(h) ||
-      /(^|\.)momerybox\.com$/i.test(h) ||
-      /(^|\.)nephobox\.com$/i.test(h)
-    );
+    return /(?:^|\.)(?:terabox\.com|1024terabox\.com|teraboxapp\.com|terabox\.app|teraboxshare\.com|teraboxlink\.com|terafileshare\.com|freeterabox\.com|1024tera\.com|4funbox\.com|mirrobox\.com|momerybox\.com|nephobox\.com)$/i.test(h);
   },
 
   extractShareId(url: URL): string | null {

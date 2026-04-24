@@ -37,13 +37,31 @@ export function makePlaceholderAdapter(id: ProviderId, hostRegex: RegExp): Resol
   };
 }
 
-export const drivePlaceholder = makePlaceholderAdapter('drive', /drive\.google\.com$/i);
-export const dropboxPlaceholder = makePlaceholderAdapter('dropbox', /(^|\.)dropbox\.com$/i);
+export const drivePlaceholder = makePlaceholderAdapter(
+  'drive',
+  /(?:drive|docs)\.google\.com$/i,
+);
+export const dropboxPlaceholder = makePlaceholderAdapter(
+  'dropbox',
+  /(?:^|\.)(?:dropbox\.com|dl\.dropboxusercontent\.com)$/i,
+);
 export const onedrivePlaceholder = makePlaceholderAdapter(
   'onedrive',
-  /(1drv\.ms|onedrive\.live\.com)$/i,
+  /(?:1drv\.ms|onedrive\.live\.com)$/i,
 );
 export const mediafirePlaceholder = makePlaceholderAdapter(
   'mediafire',
-  /(^|\.)mediafire\.com$/i,
+  /(?:^|\.)(?:mediafire\.com|mfi\.re)$/i,
+);
+export const krakenfilesPlaceholder = makePlaceholderAdapter(
+  'krakenfiles',
+  /(?:^|\.)krakenfiles\.com$/i,
+);
+export const workuploadPlaceholder = makePlaceholderAdapter(
+  'workupload',
+  /(?:^|\.)workupload\.com$/i,
+);
+export const sendcmPlaceholder = makePlaceholderAdapter(
+  'sendcm',
+  /(?:^|\.)send\.cm$/i,
 );

@@ -30,13 +30,19 @@ export interface BotMessage {
 
 export function renderStart(credits: number): BotMessage {
   const text = [
-    '\u{1F44B} <b>Welcome to TeraBox Resolver</b>',
+    '\u{1F44B} <b>Welcome to Universal Link Resolver</b>',
     '',
-    'Resolve your TeraBox links instantly.',
+    'Resolve cloud-share links instantly.',
     '',
     '\u26A1 Fast streaming links',
     '\u{1F512} Secure processing',
-    '\u{1F3AF} Accurate extraction',
+    '\u{1F30D} Multi-provider support',
+    '',
+    '<b>Supported providers:</b>',
+    '\u2705 TeraBox \u2022 Pixeldrain \u2022 GoFile',
+    '\u2705 Buzzheavier \u2022 MediaFire \u2022 Google Drive',
+    '\u2705 OneDrive \u2022 Dropbox \u2022 KrakenFiles',
+    '\u{1F6A7} WorkUpload \u2022 Send.cm <i>(coming soon)</i>',
     '',
     `You currently have: <b>${credits}</b> credits`,
   ].join('\n');
@@ -61,9 +67,14 @@ export function renderStart(credits: number): BotMessage {
 
 export function renderHelp(): BotMessage {
   const text = [
-    '<b>TeraBox Resolver \u2014 Help</b>',
+    '<b>Universal Link Resolver \u2014 Help</b>',
     '',
     'Send me any supported share link \u2014 I will return a playable / downloadable URL.',
+    '',
+    '<b>Supported providers:</b>',
+    'TeraBox \u2022 Pixeldrain \u2022 GoFile \u2022 Buzzheavier',
+    'MediaFire \u2022 Google Drive \u2022 OneDrive \u2022 Dropbox',
+    'KrakenFiles \u2022 WorkUpload \u2022 Send.cm',
     '',
     '<b>Commands</b>',
     '/start  \u2014 intro',
@@ -160,10 +171,26 @@ export interface SuccessMessage {
   inlineKeyboard: InlineKeyboardButton[][];
 }
 
+const PROVIDER_LABELS: Record<string, string> = {
+  terabox: 'TeraBox',
+  gofile: 'GoFile',
+  pixeldrain: 'Pixeldrain',
+  buzzheavier: 'Buzzheavier',
+  mediafire: 'MediaFire',
+  drive: 'Google Drive',
+  onedrive: 'OneDrive',
+  dropbox: 'Dropbox',
+  krakenfiles: 'KrakenFiles',
+  workupload: 'WorkUpload',
+  sendcm: 'Send.cm',
+};
+
 export function renderSuccess(result: ResolverResult, remainingCredits: number): SuccessMessage {
   const lines: string[] = [];
+  const providerLabel = PROVIDER_LABELS[result.provider] ?? result.provider;
   lines.push('\u{1F4E6} <b>File Ready</b>');
   lines.push('');
+  lines.push(`\u{1F310} Provider: <b>${providerLabel}</b>`);
   if (result.fileName) lines.push(`\u{1F3AC} ${escapeHtml(result.fileName)}`);
   lines.push(`\u{1F4BE} Size: ${formatBytes(result.fileSizeBytes)}`);
   lines.push('');
@@ -214,10 +241,11 @@ const ERROR_MAP: Partial<Record<ResolverErrorCode, string>> = {
   INVALID_PASSWORD: '\u274C Incorrect password',
   PROVIDER_AUTH_EXPIRED: '\u26A0\uFE0F Session expired. Retrying...',
   PROVIDER_TIMEOUT: '\u23F3 Resolver took too long. Try again.',
-  UNSUPPORTED_URL: '\u26A0\uFE0F Unsupported link',
+  UNSUPPORTED_URL: '\u26A0\uFE0F Unsupported link. Supported: TeraBox, Pixeldrain, GoFile, Buzzheavier, MediaFire, Google Drive, OneDrive, Dropbox, KrakenFiles.',
   CONTENT_NOT_FOUND: '\u26A0\uFE0F Content not found or removed',
   PROVIDER_RATE_LIMITED: '\u23F3 Too many requests. Try again shortly.',
   CIRCUIT_OPEN: '\u26A0\uFE0F Provider temporarily unavailable',
+  PROVIDER_DISABLED: '\u{1F6A7} This provider is not yet active. Support is coming soon!',
 };
 
 export function renderError(code: string, _message: string): string {

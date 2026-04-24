@@ -13,6 +13,9 @@ export const PROVIDER_IDS = [
   'dropbox',
   'onedrive',
   'mediafire',
+  'krakenfiles',
+  'workupload',
+  'sendcm',
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];

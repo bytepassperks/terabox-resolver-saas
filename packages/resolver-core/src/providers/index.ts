@@ -12,8 +12,11 @@ import { buzzheavierAdapter } from './buzzheavier/index.js';
 import {
   drivePlaceholder,
   dropboxPlaceholder,
+  krakenfilesPlaceholder,
   mediafirePlaceholder,
   onedrivePlaceholder,
+  sendcmPlaceholder,
+  workuploadPlaceholder,
 } from './placeholders.js';
 
 /**
@@ -22,12 +25,17 @@ import {
  * `.register()` line here.
  */
 export function registerAllProviders(registry: AdapterRegistry): void {
+  // Active adapters
   registry.register(teraboxAdapter);
   registry.register(pixeldrainAdapter);
   registry.register(gofileAdapter);
   registry.register(buzzheavierAdapter);
+  // Placeholder adapters (pending full implementation)
   registry.register(drivePlaceholder);
   registry.register(dropboxPlaceholder);
   registry.register(onedrivePlaceholder);
   registry.register(mediafirePlaceholder);
+  registry.register(krakenfilesPlaceholder);
+  registry.register(workuploadPlaceholder);
+  registry.register(sendcmPlaceholder);
 }
