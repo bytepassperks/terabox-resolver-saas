@@ -9,7 +9,7 @@
 
 databases:
   - name: trs-postgres
-    plan: starter
+    plan: basic_256mb
     postgresMajorVersion: '16'
 
 services:
