@@ -18,6 +18,10 @@ export interface ResolverResult {
   streamUrl: string | null;
   /** Direct download URL (short-lived; expire tracked separately). */
   downloadUrl: string | null;
+  /** Raw (non-relay-wrapped) stream URL for server-side fetching. */
+  rawStreamUrl?: string | null;
+  /** Raw (non-relay-wrapped) download URL for server-side fetching. */
+  rawDownloadUrl?: string | null;
   /** Absolute unix millis when the stream/download URL stops working. */
   expiresAtMs: number | null;
   /** True when the result was served from cache (vs freshly resolved). */

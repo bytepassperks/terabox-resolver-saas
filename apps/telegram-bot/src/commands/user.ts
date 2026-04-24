@@ -1,6 +1,5 @@
 import type { Bot, Context } from 'grammy';
 import { InputFile } from 'grammy';
-import { request as undiciRequest } from 'undici';
 import { ResolverError } from '@trs/shared-types';
 import { PLAN_DEFINITIONS } from '@trs/credits-engine';
 import type { BotContext } from '../bot.js';
@@ -22,6 +21,7 @@ import {
   renderResolveStillWorking,
   renderStart,
   renderSuccess,
+  renderVideoButtons,
 } from '../ui.js';
 
 const PENDING_PASSWORD_TTL_MS = 5 * 60 * 1000;
@@ -262,36 +262,42 @@ async function handleResolve(c: Context, ctx: BotContext, url: string): Promise<
 
     let sent = false;
 
-    // For videos, download through relay and send as native Telegram video.
-    if (isVideo && result.downloadUrl) {
+    // For videos, download the file server-side and send as native Telegram
+    // video so it plays inline in the client's built-in player.
+    // Prefer rawDownloadUrl (direct CDN) over relay-wrapped downloadUrl to
+    // avoid 302-redirect issues with undici.
+    const videoFetchUrl = result.rawDownloadUrl ?? result.downloadUrl;
+    if (isVideo && videoFetchUrl) {
       try {
-        const videoResp = await undiciRequest(result.downloadUrl, {
-          method: 'GET',
+        const videoResp = await fetch(videoFetchUrl, {
           headers: {
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            referer: 'https://www.terabox.com/',
           },
-        } as Parameters<typeof undiciRequest>[1]);
-        const chunks: Buffer[] = [];
-        for await (const chunk of videoResp.body) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          redirect: 'follow',
+        });
+        if (videoResp.ok && videoResp.body) {
+          const videoBuffer = Buffer.from(await videoResp.arrayBuffer());
+          if (videoBuffer.length > 1024) {
+            const fileName = result.fileName || 'video.mp4';
+            // For native video, use simplified buttons (Copy Link only).
+            // The video itself IS the playable/downloadable file.
+            const videoButtons = renderVideoButtons(result, user.credits - 1);
+            await c.replyWithVideo(new InputFile(videoBuffer, fileName), {
+              caption: videoButtons.text,
+              parse_mode: 'HTML',
+              reply_markup: { inline_keyboard: videoButtons.inlineKeyboard },
+              supports_streaming: true,
+            });
+            sent = true;
+          }
         }
-        const videoBuffer = Buffer.concat(chunks);
-        if (videoBuffer.length > 1024) {
-          const fileName = result.fileName || 'video.mp4';
-          await c.replyWithVideo(new InputFile(videoBuffer, fileName), {
-            caption: previewMsg.text,
-            parse_mode: 'HTML',
-            reply_markup: { inline_keyboard: previewMsg.inlineKeyboard },
-            supports_streaming: true,
-          });
-          sent = true;
-        }
-      } catch {
-        // Download or send failed — fall through to text
+      } catch (videoErr) {
+        ctx.log.warn({ err: videoErr }, 'bot: native video download/send failed');
       }
     }
 
-    // For non-video results, try sending with thumbnail photo.
+    // For non-video results or if video send failed, try thumbnail photo.
     if (!sent && result.thumbnailUrl) {
       try {
         await c.replyWithPhoto(result.thumbnailUrl, {
@@ -300,8 +306,8 @@ async function handleResolve(c: Context, ctx: BotContext, url: string): Promise<
           reply_markup: { inline_keyboard: previewMsg.inlineKeyboard },
         });
         sent = true;
-      } catch {
-        // Telegram couldn't fetch the thumbnail — fall through to text
+      } catch (photoErr) {
+        ctx.log.warn({ err: photoErr }, 'bot: thumbnail photo send failed');
       }
     }
 

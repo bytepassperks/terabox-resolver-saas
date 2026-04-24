@@ -135,9 +135,11 @@ export async function createResolverApp(log: Logger): Promise<Express> {
           requestId: body.requestId,
         },
       });
+      const rawStreamUrl = result.streamUrl;
+      const rawDownloadUrl = result.downloadUrl;
       const streamUrl = result.streamUrl ? deps.relay.wrap(result.streamUrl).url : null;
       const downloadUrl = result.downloadUrl ? deps.relay.wrap(result.downloadUrl).url : null;
-      res.json({ ok: true, result: { ...result, streamUrl, downloadUrl } });
+      res.json({ ok: true, result: { ...result, streamUrl, downloadUrl, rawStreamUrl, rawDownloadUrl } });
     } catch (err) {
       if (ResolverError.is(err)) {
         res.status(422).json({ ok: false, error: err.toJSON() });

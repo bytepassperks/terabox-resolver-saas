@@ -243,6 +243,30 @@ export function renderSuccess(result: ResolverResult, remainingCredits: number):
   return { text: lines.join('\n'), inlineKeyboard: buttons };
 }
 
+/**
+ * Render buttons for a native video message. Since the video file is already
+ * embedded in the Telegram message (playable + downloadable inline), we only
+ * need a Copy Link button for sharing the URL externally.
+ */
+export function renderVideoButtons(result: ResolverResult, remainingCredits: number): SuccessMessage {
+  const lines: string[] = [];
+  const providerLabel = PROVIDER_LABELS[result.provider] ?? result.provider;
+  lines.push('\u{1F3AC} <b>Video Ready</b>');
+  lines.push('');
+  lines.push(`\u{1F310} Provider: <b>${providerLabel}</b>`);
+  if (result.fileName) lines.push(`\u{1F4CE} ${escapeHtml(result.fileName)}`);
+  lines.push(`\u{1F4BE} Size: ${formatBytes(result.fileSizeBytes)}`);
+  lines.push('');
+  lines.push(`Credits remaining: <b>${remainingCredits}</b>`);
+
+  const buttons: InlineKeyboardButton[][] = [];
+  if (result.downloadUrl) {
+    const copyId = storeCopyUrl(result.downloadUrl);
+    buttons.push([{ text: '\u{1F4CB} Copy Link', callback_data: `copy:${copyId}` }]);
+  }
+  return { text: lines.join('\n'), inlineKeyboard: buttons };
+}
+
 // ── Password flow ─────────────────────────────────────────────────────
 
 export function renderPasswordRequired(): string {
