@@ -1,6 +1,29 @@
+import { createHmac } from 'node:crypto';
+import { request } from 'undici';
 import { workerLatency } from '@trs/metrics';
 import { buildSignedUrl } from './signing.js';
 import type { RelayConfig, RelayMode } from './types.js';
+
+export interface CfResolveResult {
+  errno: number;
+  shareid?: number;
+  uk?: number;
+  sign?: string;
+  timestamp?: number;
+  files?: Array<{
+    fs_id: number;
+    server_filename: string;
+    size: number;
+    isdir: number;
+    category: number;
+    path: string;
+    md5?: string;
+    dlink?: string;
+    thumbs?: Record<string, string>;
+  }>;
+  dlink?: string;
+  errmsg?: string;
+}
 
 /**
  * Thin client that selects a relay from the configured mesh and wraps target
@@ -33,14 +56,49 @@ export class RelayClient {
   wrap(targetUrl: string): { url: string; relay: string | null; mode: RelayMode } {
     const relay = this.pickRelay();
     if (!relay) {
-      // Fail-open: if the relay mesh is unconfigured (local dev), just return
-      // the raw URL — the bot still works, it just loses IP diversity.
       return { url: targetUrl, relay: null, mode: this.cfg.mode };
     }
     const started = Date.now();
     const signed = buildSignedUrl(relay, targetUrl, this.cfg.secret, this.cfg.signedUrlTtlSeconds);
     workerLatency.observe({ relay, mode: this.cfg.mode }, Date.now() - started);
     return { url: signed.encoded, relay, mode: this.cfg.mode };
+  }
+
+  /**
+   * Call the CF Worker's /resolve endpoint to run the TeraBox extraction flow
+   * from Cloudflare edge. This bypasses the "need verify_v2" error that
+   * datacenter IPs get when calling share/list and share/download directly.
+   */
+  async resolveTerabox(
+    shortUrl: string,
+    cookie: string,
+    password?: string,
+    signal?: AbortSignal,
+  ): Promise<CfResolveResult> {
+    const relay = this.pickRelay();
+    if (!relay) {
+      return { errno: -1, errmsg: 'no relay configured' };
+    }
+
+    const expires = Date.now() + this.cfg.signedUrlTtlSeconds * 1000;
+    const payload = `${expires}\nresolve:${shortUrl}`;
+    const sig = createHmac('sha256', this.cfg.secret).update(payload).digest();
+    const sigB64 = sig.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+    const base = relay.replace(/\/$/, '');
+    const res = await request(`${base}/resolve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        shortUrl,
+        cookie,
+        password,
+        expires,
+        sig: sigB64,
+      }),
+      signal,
+    });
+    return (await res.body.json()) as CfResolveResult;
   }
 }
 

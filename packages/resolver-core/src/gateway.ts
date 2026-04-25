@@ -21,6 +21,8 @@ export interface GatewayOptions {
   fallbacks?: Partial<Record<ProviderId, ProviderId[]>>;
   /** Optional account pool for authenticated provider access. */
   accountPool?: AccountPool;
+  /** Optional relay client — passed into adapter context for CF Worker resolve. */
+  relayClient?: unknown;
 }
 
 /**
@@ -37,6 +39,7 @@ export class ResolverGateway {
       telegramUserId: input.context?.telegramUserId,
       providerOverride: input.context?.providerOverride,
       isSystem: input.context?.isSystem ?? false,
+      relayClient: this.opts.relayClient,
     };
 
     const started = Date.now();

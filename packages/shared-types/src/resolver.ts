@@ -49,6 +49,8 @@ export interface ResolverContext {
   accountCookie?: string;
   /** Account pool row ID — used to record success/failure after resolve. */
   accountId?: string;
+  /** Relay client instance (typed as `unknown` to avoid dep cycle). Cast in adapters. */
+  relayClient?: unknown;
 }
 
 export interface ResolveRequest {

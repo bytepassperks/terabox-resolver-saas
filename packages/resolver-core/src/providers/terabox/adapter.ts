@@ -1,5 +1,6 @@
 import type { ResolverContext, ResolverResult } from '@trs/shared-types';
 import { ResolverError } from '@trs/shared-types';
+import type { RelayClient } from '@trs/worker-relay-client';
 import type { ResolverAdapter } from '../../adapter.js';
 import { extractPasswordFromUrl, refreshTeraboxShare } from './refresh.js';
 
@@ -51,10 +52,12 @@ export const teraboxAdapter: ResolverAdapter = {
     }
     const urlPassword = extractPasswordFromUrl(url.href);
     const effectivePassword = password ?? urlPassword ?? undefined;
-    return refreshTeraboxShare(shareId, signal, effectivePassword, ctx.accountCookie);
+    const relay = ctx.relayClient as RelayClient | undefined;
+    return refreshTeraboxShare(shareId, signal, effectivePassword, ctx.accountCookie, relay);
   },
 
   async refreshById(shareId: string, ctx: ResolverContext, signal: AbortSignal): Promise<ResolverResult> {
-    return refreshTeraboxShare(shareId, signal, undefined, ctx.accountCookie);
+    const relay = ctx.relayClient as RelayClient | undefined;
+    return refreshTeraboxShare(shareId, signal, undefined, ctx.accountCookie, relay);
   },
 };

@@ -1,5 +1,6 @@
 import type { ResolverResult } from '@trs/shared-types';
 import { ResolverError } from '@trs/shared-types';
+import type { RelayClient } from '@trs/worker-relay-client';
 import {
   fetchAuthenticatedDownload,
   fetchDownloadLink,
@@ -28,13 +29,11 @@ export function extractPasswordFromUrl(url: string): string | null {
  * Refreshes a known TeraBox shareId: runs the extractor again and produces a
  * fresh ResolverResult.
  *
- * Authenticated flow (when accountCookie is available):
- *   1. fetchSession       → jsToken + cookies
- *   2. fetchShortUrlInfo  → file metadata, sign, timestamp, BDCLND cookie
- *   3. fetchAuthenticatedDownload → real full-file dlink via share/download
- *   4. fetchStreamingUrl  → m3u8 CDN URL (as streaming fallback)
+ * CF Worker flow (when accountCookie + relayClient are available):
+ *   → POST /resolve to CF Worker which runs the full extraction from CF edge.
+ *     CF edge bypasses the "need verify_v2" that datacenter IPs get.
  *
- * Anonymous flow (no account cookie):
+ * Fallback anonymous flow (no account cookie):
  *   1. fetchSession       → jsToken + cookies
  *   2. fetchShortUrlInfo  → file metadata, sign, timestamp, BDCLND cookie,
  *                           shareid, uk — this is the primary data source
@@ -52,7 +51,54 @@ export async function refreshTeraboxShare(
   signal: AbortSignal,
   password?: string,
   accountCookie?: string,
+  relayClient?: RelayClient,
 ): Promise<ResolverResult> {
+  // When we have an account cookie AND a relay client, use the CF Worker
+  // resolve endpoint. This runs the full TeraBox extraction from CF edge,
+  // bypassing the "need verify_v2" error that datacenter IPs get.
+  if (accountCookie && relayClient) {
+    try {
+      const cfResult = await relayClient.resolveTerabox(
+        shareId, accountCookie, password, signal,
+      );
+      if (cfResult.errno === 0 && cfResult.files?.length) {
+        const first = cfResult.files[0]!;
+        const dlink = first.dlink ?? cfResult.dlink;
+        if (dlink) {
+          return normalizeTeraboxResult({
+            shareId,
+            file: {
+              fs_id: first.fs_id,
+              server_filename: first.server_filename,
+              size: first.size,
+              isdir: first.isdir,
+              category: first.category,
+              md5: first.md5 ?? '',
+              thumbs: first.thumbs,
+            },
+            dlink,
+            streamUrl: undefined,
+            expiresInSeconds: 28800,
+          });
+        }
+        // CF resolve returned files but no dlink — fall through
+      }
+      if (cfResult.errno === 105) {
+        throw new ResolverError({
+          code: 'CONTENT_PASSWORD_PROTECTED',
+          message: 'TeraBox: password-protected link',
+          provider: 'terabox',
+          refundable: true,
+          retriable: false,
+        });
+      }
+      // CF resolve failed — fall through to direct approach
+    } catch (err) {
+      if (ResolverError.is(err)) throw err;
+      // Network error to CF worker — fall through
+    }
+  }
+
   let session = await fetchSession(shareId, signal);
 
   // Fetch shorturlinfo — primary data source.
@@ -95,14 +141,12 @@ export async function refreshTeraboxShare(
   // files[0] is guaranteed after the length check above
   const first = files[0]!;
 
-  // When an account cookie is available, try authenticated download first.
-  // This returns the real full-file dlink instead of a transcoded segment.
+  // When an account cookie is available, try authenticated download directly.
   if (accountCookie) {
     try {
       const dl = await fetchAuthenticatedDownload(
         session, info.shareid, info.uk, first.fs_id, accountCookie, signal,
       );
-      // Also fetch streaming URL for the streamUrl field
       let streamUrl: string | undefined;
       try {
         const streaming = await fetchStreamingUrl(
@@ -138,7 +182,7 @@ export async function refreshTeraboxShare(
       file: first,
       dlink: downloadUrl,
       streamUrl,
-      expiresInSeconds: 28800, // 8h default
+      expiresInSeconds: 28800,
     });
   } catch {
     // streaming failed — fall back to share/download

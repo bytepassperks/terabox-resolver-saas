@@ -20,7 +20,8 @@
   },
   "dependencies": {
     "@trs/logger": "workspace:*",
-    "@trs/metrics": "workspace:*"
+    "@trs/metrics": "workspace:*",
+    "undici": "^7.3.0"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

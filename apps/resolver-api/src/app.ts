@@ -61,6 +61,7 @@ export async function buildDeps(log: Logger): Promise<ResolverAppDeps> {
     maxConsecutiveFailures: Number(process.env.ACCOUNT_POOL_MAX_FAILURES ?? 5),
     cooldownMs: Number(process.env.ACCOUNT_POOL_COOLDOWN_MS ?? 300_000),
   });
+  const relay = new RelayClient(readRelayConfigFromEnv());
   const gateway = new ResolverGateway({
     cache,
     registry,
@@ -68,11 +69,11 @@ export async function buildDeps(log: Logger): Promise<ResolverAppDeps> {
     cfg: resolverCfg,
     log,
     accountPool,
+    relayClient: relay,
     fallbacks: {
       terabox: [],
     },
   });
-  const relay = new RelayClient(readRelayConfigFromEnv());
   const rateLimiter = new RateLimiter(redis, readRateLimitConfigFromEnv());
   const abuse = new AbuseDetector(redis, readRateLimitConfigFromEnv().keyPrefix);
   return {

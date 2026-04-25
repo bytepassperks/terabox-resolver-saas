@@ -422,6 +422,9 @@ importers:
       '@trs/metrics':
         specifier: workspace:*
         version: link:../metrics
+      undici:
+        specifier: ^7.3.0
+        version: 7.25.0
     devDependencies:
       rimraf:
         specifier: ^6.0.1
