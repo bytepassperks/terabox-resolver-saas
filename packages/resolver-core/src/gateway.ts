@@ -4,6 +4,7 @@ import { MetadataCache } from '@trs/cache-layer';
 import { providerErrors, resolveDuration, resolveOutcomes } from '@trs/metrics';
 import type { ProviderId, ResolverContext, ResolverResult } from '@trs/shared-types';
 import { ResolverError } from '@trs/shared-types';
+import type { AccountPool } from '@trs/account-pool';
 import type { ResolverAdapter } from './adapter.js';
 import type { CircuitBreaker } from './circuit-breaker.js';
 import type { AdapterRegistry } from './registry.js';
@@ -18,6 +19,8 @@ export interface GatewayOptions {
   log: Logger;
   /** Optional fallback chain per provider. Defaults to `[primary]`. */
   fallbacks?: Partial<Record<ProviderId, ProviderId[]>>;
+  /** Optional account pool for authenticated provider access. */
+  accountPool?: AccountPool;
 }
 
 /**
@@ -82,6 +85,21 @@ export class ResolverGateway {
       this.opts.registry.has(id),
     );
 
+    // Acquire an account cookie from the pool (if available) for authenticated access
+    let acquiredAccount: { id: string; cookie: string } | null = null;
+    if (this.opts.accountPool) {
+      const acct = await this.opts.accountPool.acquire(primary);
+      if (acct) {
+        acquiredAccount = { id: acct.id, cookie: acct.cookie };
+        ctx.accountCookie = acct.cookie;
+        ctx.accountId = acct.id;
+        this.opts.log.info(
+          { accountId: acct.id, provider: primary, reqId: ctx.requestId },
+          'resolver: acquired account cookie',
+        );
+      }
+    }
+
     let lastErr: ResolverError | null = null;
     for (const providerId of chain) {
       const adapter = this.opts.registry.get(providerId);
@@ -103,6 +121,10 @@ export class ResolverGateway {
       try {
         const result = await adapter.resolve(url, ctx, controller.signal, password);
         await this.opts.breaker.recordSuccess(providerId);
+        // Record account pool success
+        if (acquiredAccount && this.opts.accountPool) {
+          await this.opts.accountPool.recordSuccess(acquiredAccount.id);
+        }
         return result;
       } catch (err) {
         const resolverErr = ResolverError.is(err)
@@ -117,6 +139,10 @@ export class ResolverGateway {
             });
         providerErrors.inc({ provider: providerId, code: resolverErr.code });
         await this.opts.breaker.recordFailure(providerId);
+        // Record account pool failure
+        if (acquiredAccount && this.opts.accountPool) {
+          await this.opts.accountPool.recordFailure(acquiredAccount.id);
+        }
         this.opts.log.warn(
           { err: resolverErr.toJSON(), providerId, reqId: ctx.requestId },
           'resolver: adapter failed',

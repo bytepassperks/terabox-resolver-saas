@@ -297,6 +297,53 @@ export async function fetchDownloadLink(
 }
 
 /**
+ * Authenticated download: use an account pool cookie to call /share/download.
+ * This returns the real full-file dlink (not a transcoded streaming segment).
+ * Requires a valid TeraBox session cookie (from a logged-in account).
+ */
+export async function fetchAuthenticatedDownload(
+  session: TeraboxSessionContext,
+  shareId: string | number,
+  uk: string | number,
+  fsId: string | number,
+  accountCookie: string,
+  signal: AbortSignal,
+): Promise<TeraboxDownloadResponse> {
+  const url = new URL('https://www.terabox.com/share/download');
+  url.searchParams.set('app_id', APP_ID);
+  url.searchParams.set('web', WEB);
+  url.searchParams.set('channel', CHANNEL);
+  url.searchParams.set('clienttype', CLIENTTYPE);
+  url.searchParams.set('jsToken', session.jsToken);
+  url.searchParams.set('dp-logid', session.logid);
+  url.searchParams.set('shareid', String(shareId));
+  url.searchParams.set('uk', String(uk));
+  url.searchParams.set('fid_list', `[${fsId}]`);
+  url.searchParams.set('primaryid', String(shareId));
+  if (session.signData) {
+    url.searchParams.set('sign', session.signData.sign);
+    url.searchParams.set('timestamp', String(session.signData.timestamp));
+  }
+
+  // Merge the account pool cookie with the session cookies
+  const mergedCookies = `${session.cookies}; ${accountCookie}`;
+
+  const res = await request(url, {
+    method: 'GET',
+    headers: {
+      'user-agent': USER_AGENT,
+      accept: 'application/json',
+      cookie: mergedCookies,
+      referer: `https://www.terabox.com/sharing/link?surl=${session.shortUrl}`,
+    },
+    signal,
+  });
+  const body = (await res.body.json()) as TeraboxDownloadResponse;
+  if (body.errno === 0 && body.dlink) return body;
+  throw mapErrno(body.errno, 'share/download (authenticated)');
+}
+
+/**
  * Fetch an m3u8 streaming URL from /share/streaming. Returns the first
  * segment URL from the playlist which is a direct CDN link. This endpoint
  * works even when /share/download returns "need verify_v2".

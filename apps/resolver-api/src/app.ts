@@ -24,6 +24,7 @@ import {
 } from '@trs/resolver-core';
 import { ResolverError } from '@trs/shared-types';
 import { RelayClient, readRelayConfigFromEnv } from '@trs/worker-relay-client';
+import { AccountPool } from '@trs/account-pool';
 
 const ResolveSchema = z.object({
   url: z.string().url(),
@@ -56,15 +57,18 @@ export async function buildDeps(log: Logger): Promise<ResolverAppDeps> {
     failureThreshold: resolverCfg.failureThreshold,
     retryWindowMs: resolverCfg.retryWindowMs,
   });
+  const accountPool = new AccountPool(pg, log, {
+    maxConsecutiveFailures: Number(process.env.ACCOUNT_POOL_MAX_FAILURES ?? 5),
+    cooldownMs: Number(process.env.ACCOUNT_POOL_COOLDOWN_MS ?? 300_000),
+  });
   const gateway = new ResolverGateway({
     cache,
     registry,
     breaker,
     cfg: resolverCfg,
     log,
+    accountPool,
     fallbacks: {
-      // Example: TeraBox has no live alternate extractor today, but gofile and
-      // pixeldrain are unrelated so they don't appear in each other's chain.
       terabox: [],
     },
   });

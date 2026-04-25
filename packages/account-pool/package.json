@@ -1,5 +1,5 @@
 {
-  "name": "@trs/resolver-core",
+  "name": "@trs/account-pool",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,11 +10,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
-    },
-    "./providers/*": {
-      "types": "./dist/providers/*/index.d.ts",
-      "import": "./dist/providers/*/index.js",
-      "default": "./dist/providers/*/index.js"
     }
   },
   "scripts": {
@@ -24,15 +19,12 @@
     "clean": "rimraf dist .turbo"
   },
   "dependencies": {
-    "@trs/account-pool": "workspace:*",
-    "@trs/cache-layer": "workspace:*",
     "@trs/logger": "workspace:*",
-    "@trs/metrics": "workspace:*",
     "@trs/shared-types": "workspace:*",
-    "@trs/worker-relay-client": "workspace:*",
-    "undici": "^7.0.0"
+    "pg": "^8.13.1"
   },
   "devDependencies": {
+    "@types/pg": "^8.11.10",
     "typescript": "^5.6.3",
     "rimraf": "^6.0.1"
   }

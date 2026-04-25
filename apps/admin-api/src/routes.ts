@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { getPgPool, getRedisClient } from '@trs/cache-layer';
 import { CreditsService } from '@trs/credits-engine';
+import { AccountPool } from '@trs/account-pool';
 import { TokenPool, readTokenPoolConfigFromEnv } from '@trs/bot-router';
 import type { Logger } from '@trs/logger';
 import { renderMetrics } from '@trs/metrics';
@@ -127,6 +128,67 @@ export function makeRoutes(log: Logger): Router {
     const body = z.object({ tokenId: z.string().min(1) }).parse(req.body);
     await tokenPool.release(body.tokenId);
     res.json({ ok: true });
+  });
+
+  // ── Account Pool Management ──────────────────────────────────────────────
+  const accountPool = new AccountPool(pg, log);
+
+  r.get('/admin/accounts', requireAdmin('accounts.read'), async (req, res) => {
+    const provider = typeof req.query.provider === 'string' ? req.query.provider : undefined;
+    const accounts = await accountPool.listAccounts(provider);
+    // Strip cookie values for listing — return redacted version
+    const redacted = accounts.map((a) => ({
+      ...a,
+      cookie: a.cookie.substring(0, 20) + '...',
+    }));
+    res.json({ ok: true, accounts: redacted });
+  });
+
+  r.post('/admin/accounts/add', requireAdmin('accounts.write'), async (req, res) => {
+    const body = z.object({
+      provider: z.string().min(1).default('terabox'),
+      cookie: z.string().min(10),
+      label: z.string().optional(),
+      expiresAt: z.string().datetime().optional(),
+    }).parse(req.body);
+    const account = await accountPool.addAccount({
+      provider: body.provider,
+      cookie: body.cookie,
+      label: body.label,
+      expiresAt: body.expiresAt ? new Date(body.expiresAt) : undefined,
+      addedBy: (req as AuthedRequest).admin.sub,
+    });
+    res.json({ ok: true, account: { ...account, cookie: account.cookie.substring(0, 20) + '...' } });
+  });
+
+  r.post('/admin/accounts/remove', requireAdmin('accounts.write'), async (req, res) => {
+    const body = z.object({ accountId: z.string().uuid() }).parse(req.body);
+    const removed = await accountPool.removeAccount(body.accountId);
+    res.json({ ok: true, removed });
+  });
+
+  r.post('/admin/accounts/update-cookie', requireAdmin('accounts.write'), async (req, res) => {
+    const body = z.object({
+      accountId: z.string().uuid(),
+      cookie: z.string().min(10),
+    }).parse(req.body);
+    await accountPool.updateCookie(body.accountId, body.cookie);
+    res.json({ ok: true });
+  });
+
+  r.post('/admin/accounts/set-status', requireAdmin('accounts.write'), async (req, res) => {
+    const body = z.object({
+      accountId: z.string().uuid(),
+      status: z.enum(['active', 'cooldown', 'disabled', 'expired']),
+    }).parse(req.body);
+    await accountPool.setStatus(body.accountId, body.status);
+    res.json({ ok: true });
+  });
+
+  r.get('/admin/accounts/health', requireAdmin('accounts.read'), async (req, res) => {
+    const provider = typeof req.query.provider === 'string' ? req.query.provider : 'terabox';
+    const health = await accountPool.getHealth(provider);
+    res.json({ ok: true, health });
   });
 
   return r;

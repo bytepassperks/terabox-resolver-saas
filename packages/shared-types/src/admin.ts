@@ -16,6 +16,8 @@ export const ADMIN_PERMISSIONS: Record<AdminRole, readonly AdminPermission[]> = 
     'cache.read',
     'cache.clear',
     'tokens.read',
+    'accounts.read',
+    'accounts.write',
   ],
   super_admin: [
     'users.read',
@@ -30,6 +32,8 @@ export const ADMIN_PERMISSIONS: Record<AdminRole, readonly AdminPermission[]> = 
     'tokens.quarantine',
     'providers.toggle',
     'admins.manage',
+    'accounts.read',
+    'accounts.write',
   ],
 };
 
@@ -45,7 +49,9 @@ export type AdminPermission =
   | 'tokens.read'
   | 'tokens.quarantine'
   | 'providers.toggle'
-  | 'admins.manage';
+  | 'admins.manage'
+  | 'accounts.read'
+  | 'accounts.write';
 
 export interface AdminJwtPayload {
   sub: string;

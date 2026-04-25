@@ -13,6 +13,7 @@
     "clean": "rimraf dist .turbo"
   },
   "dependencies": {
+    "@trs/account-pool": "workspace:*",
     "@trs/cache-layer": "workspace:*",
     "@trs/credits-engine": "workspace:*",
     "@trs/logger": "workspace:*",

@@ -29,6 +29,9 @@ importers:
 
   apps/admin-api:
     dependencies:
+      '@trs/account-pool':
+        specifier: workspace:*
+        version: link:../../packages/account-pool
       '@trs/bot-router':
         specifier: workspace:*
         version: link:../../packages/bot-router
@@ -81,6 +84,9 @@ importers:
 
   apps/resolver-api:
     dependencies:
+      '@trs/account-pool':
+        specifier: workspace:*
+        version: link:../../packages/account-pool
       '@trs/cache-layer':
         specifier: workspace:*
         version: link:../../packages/cache-layer
@@ -217,6 +223,28 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
+  packages/account-pool:
+    dependencies:
+      '@trs/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@trs/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+      pg:
+        specifier: ^8.13.1
+        version: 8.20.0
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
+      rimraf:
+        specifier: ^6.0.1
+        version: 6.1.3
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
   packages/bot-router:
     dependencies:
       '@trs/cache-layer':
@@ -348,6 +376,9 @@ importers:
 
   packages/resolver-core:
     dependencies:
+      '@trs/account-pool':
+        specifier: workspace:*
+        version: link:../account-pool
       '@trs/cache-layer':
         specifier: workspace:*
         version: link:../cache-layer

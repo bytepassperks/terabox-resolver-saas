@@ -45,6 +45,10 @@ export interface ResolverContext {
   requestId: string;
   /** True when the caller is an admin warm-cache job (skips credit deduction). */
   isSystem?: boolean;
+  /** Account pool cookie for authenticated provider access (e.g. TeraBox). */
+  accountCookie?: string;
+  /** Account pool row ID — used to record success/failure after resolve. */
+  accountId?: string;
 }
 
 export interface ResolveRequest {

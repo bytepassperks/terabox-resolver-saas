@@ -1,6 +1,7 @@
 import type { ResolverResult } from '@trs/shared-types';
 import { ResolverError } from '@trs/shared-types';
 import {
+  fetchAuthenticatedDownload,
   fetchDownloadLink,
   fetchSession,
   fetchShareList,
@@ -27,7 +28,13 @@ export function extractPasswordFromUrl(url: string): string | null {
  * Refreshes a known TeraBox shareId: runs the extractor again and produces a
  * fresh ResolverResult.
  *
- * Primary flow (anonymous, no password):
+ * Authenticated flow (when accountCookie is available):
+ *   1. fetchSession       → jsToken + cookies
+ *   2. fetchShortUrlInfo  → file metadata, sign, timestamp, BDCLND cookie
+ *   3. fetchAuthenticatedDownload → real full-file dlink via share/download
+ *   4. fetchStreamingUrl  → m3u8 CDN URL (as streaming fallback)
+ *
+ * Anonymous flow (no account cookie):
  *   1. fetchSession       → jsToken + cookies
  *   2. fetchShortUrlInfo  → file metadata, sign, timestamp, BDCLND cookie,
  *                           shareid, uk — this is the primary data source
@@ -44,6 +51,7 @@ export async function refreshTeraboxShare(
   shareId: string,
   signal: AbortSignal,
   password?: string,
+  accountCookie?: string,
 ): Promise<ResolverResult> {
   let session = await fetchSession(shareId, signal);
 
@@ -57,7 +65,7 @@ export async function refreshTeraboxShare(
     if (ResolverError.is(err) && err.code === 'CONTENT_PASSWORD_PROTECTED') {
       if (!password) throw err;
       session = await verifyPassword(session, password, signal);
-      return await passwordFlow(shareId, session, signal);
+      return await passwordFlow(shareId, session, signal, accountCookie);
     }
     throw err;
   }
@@ -87,7 +95,36 @@ export async function refreshTeraboxShare(
   // files[0] is guaranteed after the length check above
   const first = files[0]!;
 
-  // Try streaming URL first (works without share/download)
+  // When an account cookie is available, try authenticated download first.
+  // This returns the real full-file dlink instead of a transcoded segment.
+  if (accountCookie) {
+    try {
+      const dl = await fetchAuthenticatedDownload(
+        session, info.shareid, info.uk, first.fs_id, accountCookie, signal,
+      );
+      // Also fetch streaming URL for the streamUrl field
+      let streamUrl: string | undefined;
+      try {
+        const streaming = await fetchStreamingUrl(
+          session, info.shareid, info.uk, first.fs_id, signal,
+        );
+        streamUrl = streaming.streamUrl;
+      } catch {
+        // streaming is optional when we have a real dlink
+      }
+      return normalizeTeraboxResult({
+        shareId,
+        file: first,
+        dlink: dl.dlink,
+        streamUrl,
+        expiresInSeconds: dl.expiration ?? 28800,
+      });
+    } catch {
+      // Authenticated download failed — fall through to streaming
+    }
+  }
+
+  // Try streaming URL (works without share/download, but returns small segment)
   try {
     const { streamUrl, downloadUrl } = await fetchStreamingUrl(
       session,
@@ -117,8 +154,6 @@ export async function refreshTeraboxShare(
       expiresInSeconds: dl.expiration ?? null,
     });
   } catch {
-    // share/download also failed — return result with thumbnail-only
-    // (better than no result; user gets file info even without download link)
     throw new ResolverError({
       code: 'PROVIDER_UPSTREAM_ERROR',
       message: 'TeraBox: could not obtain download or streaming URL',
@@ -137,6 +172,7 @@ async function passwordFlow(
   shareId: string,
   session: Awaited<ReturnType<typeof fetchSession>>,
   signal: AbortSignal,
+  accountCookie?: string,
 ): Promise<ResolverResult> {
   const list = await fetchShareList(session, signal);
   const first = list.list[0];
@@ -159,7 +195,35 @@ async function passwordFlow(
     });
   }
 
-  // Try streaming first, then share/download
+  // Try authenticated download first when account cookie is available
+  if (accountCookie) {
+    try {
+      const dl = await fetchAuthenticatedDownload(
+        session, list.share_id, list.uk, first.fs_id, accountCookie, signal,
+      );
+      let streamUrl: string | undefined;
+      try {
+        const streaming = await fetchStreamingUrl(
+          session, list.share_id, list.uk, first.fs_id, signal,
+        );
+        streamUrl = streaming.streamUrl;
+      } catch {
+        // streaming is optional
+      }
+      const result = normalizeTeraboxResult({
+        shareId,
+        file: first,
+        dlink: dl.dlink,
+        streamUrl,
+        expiresInSeconds: dl.expiration ?? 28800,
+      });
+      return { ...result, unlocked: true, unlockSource: 'password' };
+    } catch {
+      // Authenticated download failed — fall through
+    }
+  }
+
+  // Try streaming, then share/download
   try {
     const { streamUrl, downloadUrl } = await fetchStreamingUrl(
       session,

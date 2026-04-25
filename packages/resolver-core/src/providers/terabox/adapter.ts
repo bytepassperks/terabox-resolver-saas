@@ -38,7 +38,7 @@ export const teraboxAdapter: ResolverAdapter = {
     return parseShortUrl(url);
   },
 
-  async resolve(url: URL, _ctx: ResolverContext, signal: AbortSignal, password?: string): Promise<ResolverResult> {
+  async resolve(url: URL, ctx: ResolverContext, signal: AbortSignal, password?: string): Promise<ResolverResult> {
     const shareId = parseShortUrl(url);
     if (!shareId) {
       throw new ResolverError({
@@ -51,10 +51,10 @@ export const teraboxAdapter: ResolverAdapter = {
     }
     const urlPassword = extractPasswordFromUrl(url.href);
     const effectivePassword = password ?? urlPassword ?? undefined;
-    return refreshTeraboxShare(shareId, signal, effectivePassword);
+    return refreshTeraboxShare(shareId, signal, effectivePassword, ctx.accountCookie);
   },
 
-  async refreshById(shareId: string, _ctx: ResolverContext, signal: AbortSignal): Promise<ResolverResult> {
-    return refreshTeraboxShare(shareId, signal);
+  async refreshById(shareId: string, ctx: ResolverContext, signal: AbortSignal): Promise<ResolverResult> {
+    return refreshTeraboxShare(shareId, signal, undefined, ctx.accountCookie);
   },
 };
