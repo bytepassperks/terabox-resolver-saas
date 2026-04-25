@@ -1,0 +1,39 @@
+{
+  "name": "@trs/resolver-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./providers/*": {
+      "types": "./dist/providers/*/index.d.ts",
+      "import": "./dist/providers/*/index.js",
+      "default": "./dist/providers/*/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"no lint configured\"",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@trs/account-pool": "workspace:*",
+    "@trs/cache-layer": "workspace:*",
+    "@trs/logger": "workspace:*",
+    "@trs/metrics": "workspace:*",
+    "@trs/shared-types": "workspace:*",
+    "@trs/worker-relay-client": "workspace:*",
+    "undici": "^7.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "rimraf": "^6.0.1"
+  }
+}

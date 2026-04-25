@@ -1,0 +1,157 @@
+# Render blueprint — creates every service the SaaS needs in one click.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Before first deploy:
+#   1. Create a Telegram bot + collect tokens for the cluster.
+#   2. Put your ADMIN_JWT_SECRET, WORKER_RELAY_SECRET, TELEGRAM_BOT_TOKENS
+#      into Render dashboard secret groups (NOT this file).
+#   3. Apply infra/sql/0001_init.sql against the provisioned Postgres.
+
+databases:
+  - name: trs-postgres
+    plan: basic-256mb
+    diskSizeGB: 1
+    postgresMajorVersion: '16'
+
+services:
+  - type: redis
+    name: trs-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+  - type: web
+    name: trs-resolver-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./infra/docker/Dockerfile.resolver-api
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: trs-shared-env
+      - key: RESOLVER_PORT
+        value: '4001'
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trs-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: trs-redis
+          property: connectionString
+
+  - type: web
+    name: trs-telegram-bot
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./infra/docker/Dockerfile.telegram-bot
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: trs-shared-env
+      - key: TELEGRAM_WEBHOOK_PORT
+        value: '4000'
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trs-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: trs-redis
+          property: connectionString
+      - key: RESOLVER_API_URL
+        value: http://trs-resolver-api:4001
+
+  - type: web
+    name: trs-admin-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./infra/docker/Dockerfile.admin-api
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: trs-shared-env
+      - key: ADMIN_API_PORT
+        value: '4002'
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trs-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: trs-redis
+          property: connectionString
+
+  - type: worker
+    name: trs-warm-cache-cron
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./infra/docker/Dockerfile.warm-cache-cron
+    envVars:
+      - fromGroup: trs-shared-env
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trs-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: trs-redis
+          property: connectionString
+
+envVarGroups:
+  - name: trs-shared-env
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: REDIS_KEY_PREFIX
+        value: 'trs:'
+      - key: CACHE_BASE_TTL_SECONDS
+        value: '7200'
+      - key: CACHE_POPULARITY_MULTIPLIER_SECONDS
+        value: '600'
+      - key: CACHE_MAX_TTL_SECONDS
+        value: '86400'
+      - key: RESOLVE_LOCK_TTL_SECONDS
+        value: '30'
+      - key: RESOLVER_TIMEOUT_MS
+        value: '15000'
+      - key: RESOLVER_FAILURE_THRESHOLD
+        value: '5'
+      - key: RESOLVER_RETRY_WINDOW_MS
+        value: '60000'
+      - key: RELAY_MODE
+        value: signed-redirect
+      - key: RELAY_SIGNED_URL_TTL_SECONDS
+        value: '900'
+      - key: FREE_DAILY_CREDITS
+        value: '3'
+      - key: CREDIT_COST_PER_RESOLVE
+        value: '1'
+      - key: WARM_CACHE_INTERVAL_MS
+        value: '21600000'
+      - key: WARM_CACHE_TOP_N
+        value: '100'
+      - key: WARM_CACHE_CONCURRENCY
+        value: '4'
+      # Secrets below are set through Render's secret UI — never commit values.
+      - key: ADMIN_JWT_SECRET
+        sync: false
+      - key: WORKER_RELAY_SECRET
+        sync: false
+      - key: WORKER_RELAY_URLS
+        sync: false
+      - key: TELEGRAM_BOT_TOKENS
+        sync: false
+      - key: TELEGRAM_PUBLIC_BOT_USERNAME
+        sync: false
+      - key: TELEGRAM_WEBHOOK_URL
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false
+      - key: RESOLVER_API_INTERNAL_TOKEN
+        sync: false
+      - key: ADMIN_BOOTSTRAP_TELEGRAM_IDS
+        sync: false

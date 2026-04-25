@@ -1,0 +1,12 @@
+name = "trs-relay"
+main = "src/worker.ts"
+compatibility_date = "2024-11-01"
+
+# Set RELAY_MODE to "signed-redirect" (default) or "proxy-passthrough".
+# Deploy one worker per region for the relay mesh; point the resolver-api at
+# them via WORKER_RELAY_URLS.
+[vars]
+RELAY_MODE = "signed-redirect"
+
+# WORKER_RELAY_SECRET is injected via `wrangler secret put WORKER_RELAY_SECRET`.
+# It MUST match the resolver-api's value.

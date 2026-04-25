@@ -1,0 +1,38 @@
+{
+  "name": "@trs/credits-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./plans": {
+      "types": "./dist/plans.d.ts",
+      "import": "./dist/plans.js",
+      "default": "./dist/plans.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"no lint configured\"",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@trs/cache-layer": "workspace:*",
+    "@trs/logger": "workspace:*",
+    "@trs/metrics": "workspace:*",
+    "@trs/shared-types": "workspace:*",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.6.3",
+    "rimraf": "^6.0.1"
+  }
+}

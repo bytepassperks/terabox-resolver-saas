@@ -1,0 +1,55 @@
+version: '3.9'
+
+# Local development stack. Brings up Postgres + Redis + every service.
+# Usage:
+#   docker compose -f infra/docker/docker-compose.yml up --build
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: terabox_resolver
+    ports: ['5432:5432']
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../sql/0001_init.sql:/docker-entrypoint-initdb.d/0001_init.sql:ro
+
+  redis:
+    image: redis:7-alpine
+    ports: ['6379:6379']
+
+  resolver-api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.resolver-api
+    env_file: ../../.env
+    depends_on: [postgres, redis]
+    ports: ['4001:4001']
+
+  telegram-bot:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.telegram-bot
+    env_file: ../../.env
+    depends_on: [postgres, redis, resolver-api]
+    ports: ['4000:4000']
+
+  admin-api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.admin-api
+    env_file: ../../.env
+    depends_on: [postgres, redis]
+    ports: ['4002:4002']
+
+  warm-cache-cron:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.warm-cache-cron
+    env_file: ../../.env
+    depends_on: [postgres, redis]
+
+volumes:
+  postgres-data:
